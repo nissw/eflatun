@@ -151,7 +151,7 @@ void follow_wall() {
     float error = distL - distR;
     
     float correction = (wallKp * error) + (wallKd * (error - wall_last_error));
-    wallLastError = error;
+    wall_last_error = error;
 
     correction = constrain(correction, -25, 25); 
 
