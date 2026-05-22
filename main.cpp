@@ -11,15 +11,10 @@ const int m1b = 5;
 const int m2a = 9;
 const int m2b = 10;
 
-float lineKp = 5.5; 
-float lineKd = 1.5; 
-float lineLastError = 0;
-
-float wallKp = 4.0; 
+float wallKp = 3.5; 
 float wallKd = 1.0;
-float wallLastError = 0;
 
-const int baseSpeed = 20; 
+const int baseSpeed = 25; 
 
 void setup() {
   pinMode(left, INPUT);
@@ -83,10 +78,22 @@ bool check_sharp() {
     return vC > epsilon && (vR > epsilon || vL > epsilon);
 }
 
+float smooth_vC;
+float smooth_vL;
+float smooth_vR;
+
+float alpha = 0.7;
+
 void get_line_sensors() {
-    vL = analogRead(left);
-    vC = analogRead(middle);
-    vR = analogRead(right);
+    // Read and instantly smooth the data
+    smooth_vL = (alpha * analogRead(left)) + ((1.0 - alpha) * smooth_vL);
+    smooth_vC = (alpha * analogRead(middle)) + ((1.0 - alpha) * smooth_vC);
+    smooth_vR = (alpha * analogRead(right)) + ((1.0 - alpha) * smooth_vR);
+    
+    // Pass the smoothed values to your main variables
+    vL = (int)smooth_vL;
+    vC = (int)smooth_vC;
+    vR = (int)smooth_vR;
 }
 
 void get_wall_sensors() {
@@ -124,47 +131,35 @@ bool check_wall() {
     return distL + distR + distC != 150;
 }
 
+float lineKp = 3.0; 
+float lineKd = 1.5; 
+
 void follow_line() {
     int sum = vL + vC + vR;
     if (sum == 0) sum = 1; 
     
     float error = (vR * 100.0 - vL * 100.0) / sum;
     int correction = (lineKp * error) + (lineKd * (error - line_last_error));
-    line_last_error = error;
+    line_last_error =
+     error;
 
-    // Hata miktarının mutlak değerini alıyoruz (sağa veya sola sapma fark etmeksizin)
-    float abs_error = abs(error); 
-    
-    // Dinamik Hız: Hata büyüdükçe baseSpeed'den düşüyoruz.
-    // 0.15 katsayısını testlerine göre değiştirebilirsin (Büyütürsen daha çok fren yapar)
-    int dynamicSpeed = baseSpeed - (abs_error * 0.15); 
-    
-    // Robotun virajda tamamen durmasını engellemek için taban bir hız (örn: 8) belirliyoruz
-    if (dynamicSpeed < 8) dynamicSpeed = 8; 
-
-    leftMotor(dynamicSpeed - correction);
-    rightMotor(dynamicSpeed + correction);
+    leftMotor(baseSpeed - correction);
+    rightMotor(baseSpeed + correction);
 }
 
 void follow_wall() {
     float error = distL - distR;
     
     float correction = (wallKp * error) + (wallKd * (error - wall_last_error));
-    wall_last_error = error;
+    wallLastError = error;
 
-    correction = constrain(correction, -45, 45); 
+    correction = constrain(correction, -25, 25); 
 
-    // Duvar takibinde de hataya göre dinamik hız ayarı
-    float abs_error = abs(error);
-    
-    // Duvarlar arası dar olduğu için ana hızı zaten düşük tutuyordun (baseSpeed / 5 gibi)
-    // Burada da başlangıç hızını düşük tutup hataya göre biraz daha yavaşlatıyoruz
-    int dynamicWallSpeed = (baseSpeed / 2) - (abs_error * 0.5);
-    if (dynamicWallSpeed < 6) dynamicWallSpeed = 6; // Minimum güvenli hız
-
-    leftMotor(dynamicWallSpeed + correction);
-    rightMotor(dynamicWallSpeed - correction);
+    leftMotor(baseSpeed + correction);
+    rightMotor(baseSpeed - correction);
 }
+
+
 void loop() {
     get_line_sensors();
 
@@ -184,6 +179,4 @@ void loop() {
         follow_wall();
         return;
     }
-
-
 }
